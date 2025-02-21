@@ -58,7 +58,7 @@ def main(config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--lr', type=float, default=0)          # learning rate 
+    parser.add_argument('--lr', type=float, default=5e-5)          # learning rate 
     parser.add_argument('--num_epochs', type=int, default=10)   # Number of training epochs 
     parser.add_argument('--k', type=int, default=5)             #  ?
     parser.add_argument('--win_size', type=int, default=100)    # Window size (default 100)
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'memory_initial', 'window_test'])
     parser.add_argument('--data_path', type=str, default='./data/SMD/SMD/')
     parser.add_argument('--model_save_path', type=str, default='./MEMTO/checkpoints')
-    parser.add_argument('--anormly_ratio', type=float, default=0.0)
+    parser.add_argument('--anormly_ratio', type=float, default=1.0)
     parser.add_argument('--device', type=str, default="cuda:0")
     parser.add_argument('--n_memory', type=int, default=128, help='number of memory items')
     parser.add_argument('--num_workers', type=int, default=4*torch.cuda.device_count())
