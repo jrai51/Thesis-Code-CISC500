@@ -6,11 +6,11 @@ def generate_train_test_files(train_user, test_user, framework="WACA"):
     # Call  functions from the other script to generate train.csv and test.csv
 
     # Generate Train file
-    path_to_train = f"./MEMTO/data/WACA/WACA/WACA_dataset/user{train_user}_2.csv"
+    path_to_train = f"./WACA_dataset/user{train_user}_2.csv"
     save_user_train_data(path_to_train)
 
     # Generate Test file
-    path_to_test = f"./MEMTO/data/WACA/WACA/WACA_dataset/user{test_user}_1.csv"
+    path_to_test = f"./WACA_dataset/user{test_user}_1.csv"
     save_user_test_data(path_to_test, path_to_npy="./MEMTO/data/WACA/WACA/WACA_test.npy", path_to_csv="./MEMTO/data/WACA/WACA/test.csv")
     save_user_test_label_data(impostor=False, path_to_csv="./MEMTO/data/WACA/WACA/test.csv", path_to_test_label="./MEMTO/data/WACA/WACA/test_label.csv")
 
