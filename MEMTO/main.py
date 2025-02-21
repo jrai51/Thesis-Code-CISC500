@@ -71,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='SMD')
     parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'memory_initial', 'window_test'])
     parser.add_argument('--data_path', type=str, default='./data/SMD/SMD/')
-    parser.add_argument('--model_save_path', type=str, default='checkpoints')
+    parser.add_argument('--model_save_path', type=str, default='./MEMTO/checkpoints')
     parser.add_argument('--anormly_ratio', type=float, default=0.0)
     parser.add_argument('--device', type=str, default="cuda:0")
     parser.add_argument('--n_memory', type=int, default=128, help='number of memory items')

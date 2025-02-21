@@ -30,7 +30,7 @@ class MemoryModule(nn.Module):
                 # print('loading memory item vectors trained from kmeans (for test phase)')
                 # self.mem = self.memory_init_embedding
                 # after
-                load_path = f'./memory_item/{dataset_name}_memory_item.pth'
+                load_path = f'./MEMTO/memory_item/{dataset_name}_memory_item.pth'
                 self.mem = torch.load(load_path)
                 print(load_path)
                 print('loading memory item vectors trained from kmeans (for test phase)')
