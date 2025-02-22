@@ -1,5 +1,6 @@
 import subprocess
 import argparse
+import time
 from MEMTO.WACA_clean_data import *
 
 def generate_train_test_files(train_user, test_user, framework="WACA"):
@@ -39,7 +40,7 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=10, input_c=4, win_size=1000):
     """
     memory_initial = (mode == "memory_initial")
 
-    phase_type = None
+    phase_type = "None"
     if mode == "memory_initial":
         phase_type = "second_train"
         num_epochs = 100
@@ -47,22 +48,37 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=10, input_c=4, win_size=1000):
     elif mode == "test":
         phase_type = "test"
 
-    cmd = ["python3", "main.py",
+    cmd = ["python3", "MEMTO/main.py",
             "--mode", mode, 
-            "--num_epochs", num_epochs,
+            "--num_epochs", str(num_epochs),
             "--dataset", dataset, 
             "--data_path", f"./MEMTO/data/{dataset}/{dataset}/",
-            "--input_c", input_c, 
-            "--output_c", input_c, 
-            "--n_memory", 10, 
-            "--win_size", win_size, 
-            "--memory_initial", memory_initial,
+            "--input_c", str(input_c), 
+            "--output_c", str(input_c), 
+            "--n_memory", "10", 
+            "--win_size", str(win_size), 
+            "--memory_initial", str(memory_initial),
             "--phase_type", phase_type]
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    print(result.stdout)
+    print(cmd)
+    
+    try:
+        # Run the command and capture output
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Print command output
+        print("STDOUT:", result.stdout)
+        return result.stdout
+        
+    except subprocess.CalledProcessError as e:
+        # Print error details if the command fails
+        print("ERROR: Command execution failed!")
+        print("Return Code:", e.returncode)
+        print("STDOUT:", e.stdout)
+        print("STDERR:", e.stderr)
     # Optionally log result.stderr for errors
-    return result.stdout
+    
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -77,6 +93,7 @@ if __name__ == "__main__":
 
         # Run first training phase on train.csv
         train_output = run_MEMTO("train")
+        print(f"train 1 output: {train_output}")
 
         # Run MEMTO second training phase
         second_train_output = run_MEMTO("memory_initial")
