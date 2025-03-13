@@ -130,7 +130,12 @@ class MemoryModule(nn.Module):
         if l == 2:
             pass
         elif l == 3:
+            
             read_query = read_query.view(s[0], s[1], 2*s[2])
+            batch_size = s[0]
+            seq_len = attn.shape[0] // batch_size  # Dynamically compute seq_len
+
+#             attn = attn.view(batch_size, seq_len, self.n_memory) #allows attn to scale with increased memory items.
             attn = attn.view(s[0], s[1], self.n_memory)
         else:
             raise TypeError('Wrong input dimension')

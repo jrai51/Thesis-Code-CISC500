@@ -1,7 +1,8 @@
 import subprocess
 import argparse
 import time
-from MEMTO.WACA_clean_data import *
+import os
+from WACA_clean_data import *
 
 def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset="WACA"):
     # Call  functions from the other script to generate train.csv and test.csv
@@ -10,21 +11,33 @@ def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset=
         data_path = f"./MEMTO/data/{dataset}/{dataset}"
     elif framework == "Anomaly-Transformer":
         data_path = f"./Anomaly-Transformer/dataset/{dataset}"
-        
-        
 
-    # Generate Train file
+    # Get filepaths
     path_to_train = f"./WACA_dataset/user{train_user}_2.csv"
+    path_to_test = f"./WACA_dataset/user{test_user}_1.csv"
+    
+    data_exists = True
+    # check if user file exists
+    if not os.path.exists(path_to_train):
+        print(f"{path_to_train} does not exist.")
+        data_exists = False
+    elif not os.path.exists(path_to_test):
+        print(f"{path_to_test} does not exist.")
+        data_exists = False
+        
+    if not data_exists: return data_exists
+    
+    # Generate train file 
     save_user_train_data(path_to_train, path_to_csv=f"{data_path}/train.csv")
 
     # Generate Test file
-    path_to_test = f"./WACA_dataset/user{test_user}_1.csv"
-    save_user_test_data(path_to_test, path_to_csv=f".{data_path}/test.csv")
-    save_user_test_label_data(impostor=False, path_to_csv=f"{data_path}/test.csv", path_to_test_label=f"{data_path}/test_label.csv")
+    save_user_test_data(path_to_test, path_to_csv=f"{data_path}/test.csv")
+    # if the train user is the same as test user, impostor=False
+    save_user_test_label_data(impostor=(not train_user == test_user), path_to_csv=f"{data_path}/test.csv", path_to_test_label=f"{data_path}/test_label.csv")
 
     pass
 
-def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=4, win_size=500):
+def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=500, anormly_ratio=1):
     """
     
     train cmd: 
@@ -38,7 +51,7 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=4, win_si
     
     cmd = ["python3", "Anomaly-Transformer/main.py",
             "--mode", mode, 
-            "--anormly_ratio", "1",
+            "--anormly_ratio", str(anormly_ratio),
             "--num_epochs", str(num_epochs),
             "--dataset", dataset, 
             "--data_path", f"./Anomaly-Transformer/dataset/{dataset}",
@@ -65,7 +78,7 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=4, win_si
     
     
 
-def run_MEMTO(mode, dataset="WACA", num_epochs=10, input_c=4, win_size=1000):
+def run_MEMTO(mode, dataset="WACA", num_epochs=15, input_c=6, win_size=1000, anormly_ratio=1, n_memory_items=10):
     """
     Run MEMTO commands for training and testing.
 
@@ -76,6 +89,9 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=10, input_c=4, win_size=1000):
 
     initial train:
     python3 MEMTO/main.py --anormly_ratio 1.0 --num_epochs 10   --batch_size 32  --mode train --dataset WACA  --data_path ./MEMTO/data/WACA/WACA/  --input_c 4 --output_c 4 --n_memory 10 --memory_initial False --win_size 1000 --phase_type None
+    
+    OR IS IT:
+    python3 MEMTO/main.py --mode train --anormly_ratio 1 --num_epochs 100 --dataset WACA --data_path ./MEMTO/data/WACA/WACA/ --input_c 6 --output_c 6 --n_memory 10 --batch_size 32 --memory_initial False --phase_type None
 
     second train phase:
     python3 MEMTO/main.py --anormly_ratio 1.0 --num_epochs 100  --batch_size 32  --mode memory_initial --dataset WACA  --data_path ./MEMTO/data/WACA/WACA/  --input_c 4 --output_c 4 --n_memory 10 --lambd 0.01 --lr 5e-5 --memory_initial True --win_size 1000 --phase_type second_train
@@ -96,12 +112,13 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=10, input_c=4, win_size=1000):
 
     cmd = ["python3", "MEMTO/main.py",
             "--mode", mode, 
+            "--anormly_ratio", str(anormly_ratio),
             "--num_epochs", str(num_epochs),
             "--dataset", dataset, 
             "--data_path", f"./MEMTO/data/{dataset}/{dataset}/",
             "--input_c", str(input_c), 
             "--output_c", str(input_c), 
-            "--n_memory", "10", 
+            "--n_memory", str(n_memory_items), 
             "--win_size", str(win_size), 
             "--memory_initial", str(memory_initial),
             "--phase_type", phase_type]
@@ -131,6 +148,8 @@ if __name__ == "__main__":
     parser.add_argument("--framework", type=str, required=True)
     parser.add_argument("--train_user", type=str, required=True)
     parser.add_argument("--test_user", type=str, required=True)
+    parser.add_argument("--anormly_ratio", type=int, default=1, required=False)
+
     parser.add_argument("--no_retrain", action="store_true", help="Skip retraining if a trained model exists.")
     args = parser.parse_args()
 
@@ -139,10 +158,10 @@ if __name__ == "__main__":
         generate_train_test_files(args.train_user, args.test_user, "MEMTO")
         if not args.no_retrain:
             print("Training MEMTO model...")
-            train_output = run_MEMTO("train")
+            train_output = run_MEMTO("train", anormly_ratio=args.anormly_ratio)
 
             print("Running MEMTO second training phase...")
-            second_train_output = run_MEMTO("memory_initial")
+            second_train_output = run_MEMTO("memory_initial", anormly_ratio=args.anormly_ratio)
         else:
             print("Skipping MEMTO training: model already exists.")
        
@@ -157,9 +176,9 @@ if __name__ == "__main__":
         
         if not args.no_retrain:
             print("Training Anomaly Transformer model...")
-            train_output = run_AnomalyTransformer("train")
+            train_output = run_AnomalyTransformer("train", input_c=6, anormly_ratio=args.anormly_ratio)
         else:
             print("Skipping Anomaly Transformer training: model already exists.")
 
         print("Running Anomaly Transformer test...")
-        test_output = run_AnomalyTransformer("test")
+        test_output = run_AnomalyTransformer("test", input_c=3)

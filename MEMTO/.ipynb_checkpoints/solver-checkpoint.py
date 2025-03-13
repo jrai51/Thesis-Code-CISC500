@@ -101,7 +101,8 @@ class OneEarlyStopping:
 
         torch.save(model.state_dict(), os.path.join(path, str(self.dataset) + f'_checkpoint_{self.type}.pth'))
         self.val_loss_min = val_loss
-                   # Check memory usage before emptying the cache
+        
+        # Check memory usage before emptying the cache
         reserved_before = torch.cuda.memory_reserved()
         allocated_before = torch.cuda.memory_allocated()
 
@@ -306,6 +307,8 @@ class Solver(object):
 
             rec_loss = torch.mean(criterion(input,output),dim=-1)
             latent_score = torch.softmax(gathering_loss(queries, mem_items)/temperature, dim=-1)
+            print("Reconstruction loss:", rec_loss)
+            print("latent score:", latent_score)
             loss = latent_score * rec_loss
 
             cri = loss.detach().cpu().numpy()
@@ -564,3 +567,78 @@ class Solver(object):
             })
             
         return window_accuracies
+    
+    def inference_with_window(self, window_size=1000, anomaly_threshold=0.5):
+        """
+        Inference method for processing a window of data and making decisions based on anomaly detection.
+        The decision is made if the percentage of anomalies detected exceeds the given threshold.
+
+        Args:
+            window_size (int): Size of the data window to process.
+            anomaly_threshold (float): The threshold for decision-making based on detected anomalies.
+
+        Returns:
+            results (list): List of results for each window processed.
+        """
+
+        self.model.load_state_dict(torch.load(os.path.join(str(self.model_save_path), str(self.dataset) + '_checkpoint_second_train.pth')))
+
+        self.model.eval()
+
+        criterion = nn.MSELoss(reduce=False)
+        gathering_loss = GatheringLoss(reduce=False)
+        temperature = self.temperature
+
+        window_results = []
+
+        # Process data in non-overlapping windows
+        for i, (input_data, labels) in enumerate(self.test_loader):
+            # Reshape input_data and labels into non-overlapping windows
+            batch_size, seq_len, num_features = input_data.shape
+            num_windows = seq_len // window_size
+
+            input_windows = input_data[:, :num_windows*window_size, :].reshape(batch_size*num_windows, window_size, num_features)
+            label_windows = labels[:, :num_windows*window_size].reshape(batch_size*num_windows, window_size)
+
+            for window_idx in range(input_windows.shape[0]):
+                window_input = input_windows[window_idx:window_idx+1].float().to(self.device)
+                window_labels = label_windows[window_idx]
+
+                output_dict = self.model(window_input)
+                output, queries, mem_items = output_dict['out'], output_dict['queries'], output_dict['mem']
+
+                rec_loss = torch.mean(criterion(window_input, output), dim=-1)
+                latent_score = torch.softmax(gathering_loss(queries, mem_items) / temperature, dim=-1)
+                loss = latent_score * rec_loss
+
+                energy = loss.detach().cpu().numpy().flatten()
+                labels = window_labels.numpy().flatten()
+
+                # Calculate anomaly predictions
+                thresh = np.percentile(energy, 100 - self.anormly_ratio)
+                pred = (energy > thresh).astype(int)
+                gt = labels.astype(int)
+
+                # Calculate metrics for this window
+                accuracy = accuracy_score(gt, pred)
+                precision, recall, f_score, _ = precision_recall_fscore_support(gt, pred, average='binary')
+
+                # Calculate the percentage of anomalies detected
+                anomaly_percentage = np.sum(pred) / len(pred)
+
+                # Make a decision based on the anomaly threshold
+                decision = anomaly_percentage >= anomaly_threshold
+
+                window_results.append({
+                    'window_idx': window_idx,
+                    'accuracy': accuracy,
+                    'precision': precision,
+                    'recall': recall,
+                    'f_score': f_score,
+                    'anomaly_percentage': anomaly_percentage,
+                    'decision': decision
+                })
+
+                print(f"Window idx: {window_idx}, accuracy: {accuracy}, anomaly percentage: {anomaly_percentage:.2f}, decision: {decision}")
+
+        return window_results

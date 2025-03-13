@@ -38,19 +38,22 @@ def main(config):
     elif config.mode == 'memory_initial':
         solver.get_memory_initial_embedding(training_type='second_train')
         
-    elif config.mode == 'window_test':
-        threshold=config.threshold
-        windows = solver.test_with_windows(anomaly_flag=config.impostor, thresh=threshold)
-        acc_sum = 0
-        f1_sum = 0
-        num_windows = len(windows)
-        for d in windows:
-            acc_sum += d['accuracy']
-#             f1_sum += d['f_score']
+    elif config.mode == 'inference_experiment':
+        solver.inference_with_window(config.win_size, config.anomaly_threshold)
+        
+#     elif config.mode == 'window_test':
+#         threshold=config.threshold
+#         windows = solver.test_with_windows(anomaly_flag=config.impostor, thresh=threshold)
+#         acc_sum = 0
+#         f1_sum = 0
+#         num_windows = len(windows)
+#         for d in windows:
+#             acc_sum += d['accuracy']
+# #             f1_sum += d['f_score']
             
-        print(f"Average accuracy over {num_windows} windows: {acc_sum / num_windows}")
-#         print(f"Average f score over {num_windows}: {f1_sum / num_windows}")
-        print("Window testing complete.")
+#         print(f"Average accuracy over {num_windows} windows: {acc_sum / num_windows}")
+# #         print(f"Average f score over {num_windows}: {f1_sum / num_windows}")
+#         print("Window testing complete.")
 
     return solver
 
@@ -80,8 +83,10 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', type=int, default=0.1)
     parser.add_argument('--memory_initial',type=str, default=False, help='whether it requires memory item embeddings. False: using random initialization, True: using customized intialization')
     parser.add_argument('--phase_type',type=str, default=None, help='whether it requires memory item embeddings. False: using random initialization, True: using customized intialization')
-    parser.add_argument('--threshold', type=float, default=3e+20)
+    parser.add_argument('--anomaly_threshold', type=float, default=0.5, help='minimum percentage of anomalous points in a window to classify it as impostor')
+    
     parser.add_argument('--impostor', action='store_true', help="Specify if the user is an impostor")
+    
     
     config = parser.parse_args()
     args = vars(config)
