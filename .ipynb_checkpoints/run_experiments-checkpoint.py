@@ -4,6 +4,7 @@ import time
 import os
 from WACA_clean_data import *
 
+
 def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset="WACA"):
     # Call  functions from the other script to generate train.csv and test.csv
     data_path = ""
@@ -145,40 +146,87 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=15, input_c=6, win_size=1000, ano
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--experiment", type=str, default="train")
     parser.add_argument("--framework", type=str, required=True)
     parser.add_argument("--train_user", type=str, required=True)
     parser.add_argument("--test_user", type=str, required=True)
     parser.add_argument("--anormly_ratio", type=int, default=1, required=False)
+    parser.add_argument("--channel_size", type=int, default=6, required=False)
 
     parser.add_argument("--no_retrain", action="store_true", help="Skip retraining if a trained model exists.")
     args = parser.parse_args()
+    
+    user_ids = [1,2,3,4,5,6,7,8, 19, 21, 22, 26,27,28,29] + [x for x in range(35, 50) if x != 47 ]    
+    print("user count:", len(user_ids))
+    
+    # this outer if/else case will have to be refactored, probably not best practice
+    if args.experiment == "train":
+        if args.framework == "MEMTO":
+            # Generate train.csv and test.csv based on the specified users.
+            generate_train_test_files(args.train_user, args.test_user, "MEMTO")
+            if not args.no_retrain:
+                print("Training MEMTO model...")
+                train_output = run_MEMTO("train", anormly_ratio=args.anormly_ratio)
 
-    if args.framework == "MEMTO":
-        # Generate train.csv and test.csv based on the specified users.
-        generate_train_test_files(args.train_user, args.test_user, "MEMTO")
-        if not args.no_retrain:
+                print("Running MEMTO second training phase...")
+                second_train_output = run_MEMTO("memory_initial", anormly_ratio=args.anormly_ratio)
+            else:
+                print("Skipping MEMTO training: model already exists.")
+
+
+            # Run testing on test.csv
+            test_output = run_MEMTO("test")
+
+            # Process and record outputs as needed.
+        elif args.framework == "Anomaly-Transformer":
+            # Generate train.csv and test.csv based on the specified users.
+            generate_train_test_files(args.train_user, args.test_user, framework="Anomaly-Transformer")
+
+            if not args.no_retrain:
+                print("Training Anomaly Transformer model...")
+                train_output = run_AnomalyTransformer("train", input_c=args.channel_size, anormly_ratio=args.anormly_ratio)
+            else:
+                print("Skipping Anomaly Transformer training: model already exists.")
+
+            print("Running Anomaly Transformer test...")
+            test_output = run_AnomalyTransformer("test", input_c=args.channel_size)
+    
+    
+    
+    elif args.experiment == "inference":
+        # INCOMPLETE: NEED TO SPECIFY WHICH USER WAS TRAINED ON, OR ENSURE THE PROVIDED TRAIN_USER WAS USED IN TRAINING
+        # test user is fine
+        if args.framework == "MEMTO":
+            # run inferencing
+            generate_train_test_files(args.train_user, args.test_user, "MEMTO")
+            run_MEMTO(mode="inference_experiment")
+            
+            
+            
+    elif args.experiment == "generate_results" and args.framework == "MEMTO": #will have to come up with a better way to switch the model methods. Use class methods?
+        for gen_user in user_ids:            
+            # Generate train.csv and test.csv based on the specified users.
+            generate_train_test_files(gen_user, args.test_user, "MEMTO")
+            
+            # train a model on the genuine user
             print("Training MEMTO model...")
             train_output = run_MEMTO("train", anormly_ratio=args.anormly_ratio)
 
             print("Running MEMTO second training phase...")
             second_train_output = run_MEMTO("memory_initial", anormly_ratio=args.anormly_ratio)
-        else:
-            print("Skipping MEMTO training: model already exists.")
-       
-
-        # Run testing on test.csv
-        test_output = run_MEMTO("test")
-
-        # Process and record outputs as needed.
-    elif args.framework == "Anomaly-Transformer":
-        # Generate train.csv and test.csv based on the specified users.
-        generate_train_test_files(args.train_user, args.test_user, framework="Anomaly-Transformer")
+            
+            # Should save a model for each user at this point
+            
+            for imposter in user_ids:
+                # inference against the impostor user windows, no need to re-train
+                print(f"gen_user: {gen_user}, imposter: {imposter}")
+                generate_train_test_files(gen_user, imposter, "MEMTO")
+                run_MEMTO(mode="inference_experiment")
+                
+        pass
+    
         
-        if not args.no_retrain:
-            print("Training Anomaly Transformer model...")
-            train_output = run_AnomalyTransformer("train", input_c=6, anormly_ratio=args.anormly_ratio)
-        else:
-            print("Skipping Anomaly Transformer training: model already exists.")
+                
 
-        print("Running Anomaly Transformer test...")
-        test_output = run_AnomalyTransformer("test", input_c=3)
+               
+        

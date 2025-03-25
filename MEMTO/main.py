@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('--lambd',type=float, default=0.01)
     parser.add_argument('--pretrained_model', type=str, default=None)
     parser.add_argument('--dataset', type=str, default='SMD')
-    parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'memory_initial', 'window_test'])
+    parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'memory_initial', 'inference_experiment'])
     parser.add_argument('--data_path', type=str, default='./data/SMD/SMD/')
     parser.add_argument('--model_save_path', type=str, default='./MEMTO/checkpoints')
     parser.add_argument('--anormly_ratio', type=float, default=1.0)

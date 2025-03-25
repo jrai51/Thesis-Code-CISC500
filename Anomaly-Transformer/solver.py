@@ -329,12 +329,15 @@ class Solver(object):
         test_labels = np.concatenate(test_labels, axis=0).reshape(-1)
         test_energy = np.array(attens_energy)
         test_labels = np.array(test_labels)
-
+        
+        print("test energy scores:", test_energy[0:10])
+        
         pred = (test_energy > thresh).astype(int)
 
         gt = test_labels.astype(int)
 
-        print("pred:   ", pred.shape)
+        print("pred:   ", pred.shape, pred)
+        print(f"total anomalies: {np.sum(pred)}")
         print("gt:     ", gt.shape)
 
         # detection adjustment: please see this issue for more information https://github.com/thuml/Anomaly-Transformer/issues/14

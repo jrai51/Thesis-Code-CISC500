@@ -286,6 +286,114 @@ class _WACASegLoader(Dataset):
         
 class WACASegLoader(Dataset):
     """
+    WACASegLoader for MEMTO implementation. 
+    Datapoints are 6 columns (x_a, y_a, z_a, x_g, y_g, z_g). 
+    Uses RobustScaler for training data, and min/max of training data to scale the test data.
+    """
+
+    def __init__(self, data_path, win_size, step, mode="train"):
+        self.mode = mode
+        self.step = step
+        self.win_size = win_size
+
+        # Load training data
+        train_data = pd.read_csv(f"{data_path}/train.csv", header=0).values  # Convert to NumPy array
+
+        # Step 1: Compute min/max for each column
+        self.sensor_min_max = self.compute_sensor_min_max(train_data)
+
+        # Step 2: Scale the training data using RobustScaler
+        scaler = RobustScaler()
+        scaled_train_data = scaler.fit_transform(train_data)
+
+        # Split into train and validation sets
+        data_len = len(scaled_train_data)
+        split_idx = int(data_len * 0.8)
+        self.train = scaled_train_data[:split_idx]
+        self.val = scaled_train_data[split_idx:]
+
+        print("Scaled train data sample:", self.train[:5])
+
+        # Step 3: Read and scale the test data
+        test_data = pd.read_csv(f"{data_path}/test.csv", header=0).values  # Convert to NumPy array
+        test_data = np.nan_to_num(test_data)  # Handle NaNs if present
+        self.test = self.min_max_scale(test_data, self.sensor_min_max)
+
+        print("Scaled test data sample:", self.test[:5])
+
+        # Read test labels
+        self.test_labels = pd.read_csv(f"{data_path}/test_label.csv", header=0).values[:, 1:]  # Skip index column
+
+        print("Test shape:", self.test.shape)
+        print("Train shape:", self.train.shape)
+        print("Validation shape:", self.val.shape)
+
+    def compute_sensor_min_max(self, data):
+        """
+        Compute the min and max for each column in the dataset.
+
+        Args:
+            data (numpy array): The raw data array with shape (N, 6).
+
+        Returns:
+            dict: Min/max values for each column (0-5).
+        """
+        return {
+            i: {"min": np.min(data[:, i]), "max": np.max(data[:, i])} 
+            for i in range(data.shape[1])  # Iterate over all 6 columns
+        }
+
+    def min_max_scale(self, data, sensor_min_max):
+        """
+        Apply min-max scaling to each column using the provided min/max values.
+
+        Args:
+            data (numpy array): The raw data to scale.
+            sensor_min_max (dict): Dictionary containing min/max values for each column.
+
+        Returns:
+            numpy array: The scaled data.
+        """
+        scaled_data = np.copy(data)  # Avoid modifying original data
+
+        for i in range(data.shape[1]):  # Iterate over all 6 columns
+            min_val = sensor_min_max[i]["min"]
+            max_val = sensor_min_max[i]["max"]
+
+            if max_val - min_val > 0:  # Avoid division by zero
+                scaled_data[:, i] = (data[:, i] - min_val) / (max_val - min_val)
+            else:
+                scaled_data[:, i] = 0  # If min == max, set scaled values to 0
+
+        return scaled_data
+    
+    def __len__(self):
+        if self.mode == "train":
+            return (self.train.shape[0] - self.win_size) // self.step + 1
+        elif self.mode == 'val':
+            return (self.val.shape[0] - self.win_size) // self.step + 1
+        elif self.mode == 'test':
+            return (self.test.shape[0] - self.win_size) // self.step + 1
+        else:
+            return (self.test.shape[0] - self.win_size) // self.win_size + 1
+
+    def __getitem__(self, index):
+        index = index * self.step
+        if self.mode == "train":
+            return np.float32(self.train[index: index+self.win_size]), np.float32(self.test_labels[0:self.win_size])
+        elif self.mode == 'val':
+            return np.float32(self.val[index: index+self.win_size]), np.float32(self.test_labels[0:self.win_size])
+        elif self.mode == 'test':
+            return np.float32(self.test[index: index+self.win_size]), np.float32(
+                self.test_labels[index: index+self.win_size])
+        else:
+            return np.float32(self.test[
+                              index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])        
+        
+
+class __WACASegLoader(Dataset):
+    """
     WACASegLoader implementation for AnomalyTransformer. Does not include timestamps OR Sensor label. 
     Uses RobustScaler for the training data, and min/max of the training data to scale the test data.
     """

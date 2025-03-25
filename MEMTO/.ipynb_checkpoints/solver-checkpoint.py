@@ -595,6 +595,8 @@ class Solver(object):
         for i, (input_data, labels) in enumerate(self.test_loader):
             # Reshape input_data and labels into non-overlapping windows
             batch_size, seq_len, num_features = input_data.shape
+            print(f"Batch size: {batch_size}, Sequence length: {seq_len}, Num features: {num_features}")
+
             num_windows = seq_len // window_size
 
             input_windows = input_data[:, :num_windows*window_size, :].reshape(batch_size*num_windows, window_size, num_features)
@@ -636,9 +638,9 @@ class Solver(object):
                     'recall': recall,
                     'f_score': f_score,
                     'anomaly_percentage': anomaly_percentage,
-                    'decision': decision
+                    'impostor_detected': decision
                 })
 
-                print(f"Window idx: {window_idx}, accuracy: {accuracy}, anomaly percentage: {anomaly_percentage:.2f}, decision: {decision}")
+                print(f"Window idx: {window_idx}, accuracy: {accuracy}, anomaly percentage: {anomaly_percentage:.2f}, imposter decision: {decision}")
 
         return window_results
