@@ -617,6 +617,8 @@ class Solver(object):
                 labels = window_labels.numpy().flatten()
 
                 # Calculate anomaly predictions
+                # THIS VERSION NEEDS TO BE CHANGED TO GET THE THRESHOLD FROM TRAINING WINDOWS, NOT JUST TEST -- COULD BE WHY RESULTS ARE POOR ON MEMTO (PROBABLY IS).
+
                 thresh = np.percentile(energy, 100 - self.anormly_ratio)
                 pred = (energy > thresh).astype(int)
                 gt = labels.astype(int)
