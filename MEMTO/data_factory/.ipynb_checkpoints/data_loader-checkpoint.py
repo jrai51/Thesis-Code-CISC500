@@ -644,6 +644,7 @@ def get_loader_segment(data_path, batch_size, win_size=100, step=100, mode='trai
     '''
     model : 'train' or 'test'
     '''
+    print
     if (dataset == 'SMD'):
         dataset = SMDSegLoader(data_path, win_size, step, mode)
     elif (dataset == 'MSL'):
@@ -655,7 +656,7 @@ def get_loader_segment(data_path, batch_size, win_size=100, step=100, mode='trai
     elif (dataset == 'SWaT'):
         dataset = SWaTSegLoader(data_path, win_size, step, mode)
     elif (dataset == 'WACA'):
-        dataset = WACASegLoader(data_path, win_size, step, mode)
+        dataset = WACASegLoader(data_path, win_size, step, mode) #forcing step to be win size for WACA
 
     shuffle = False
     if mode == 'train':

@@ -38,7 +38,7 @@ def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset=
 
     pass
 
-def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=500, anormly_ratio=1):
+def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=1000, anormly_ratio=1, batch_size=20):
     """
     
     train cmd: 
@@ -58,7 +58,9 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_si
             "--data_path", f"./Anomaly-Transformer/dataset/{dataset}",
             "--input_c", str(input_c), 
             "--output_c", str(input_c), 
-            "--batch_size", str(win_size)]
+            "--win_size", str(win_size),
+            "--batch_size", str(batch_size)
+          ]
     
     print(cmd)
     
@@ -197,9 +199,14 @@ if __name__ == "__main__":
         # INCOMPLETE: NEED TO SPECIFY WHICH USER WAS TRAINED ON, OR ENSURE THE PROVIDED TRAIN_USER WAS USED IN TRAINING
         # test user is fine
         if args.framework == "MEMTO":
-            # run inferencing
-            generate_train_test_files(args.train_user, args.test_user, "MEMTO")
-            run_MEMTO(mode="inference_experiment")
+            generate_train_test_files(args.train_user, args.test_user, "MEMTO") # generate train/test files 
+            train_output = run_MEMTO("train", anormly_ratio=args.anormly_ratio) # train model on appropriate user
+            run_MEMTO(mode="inference_experiment") # Run inferencing 
+            
+        elif args.framework == "Anomaly-Transformer":
+            generate_train_test_files(args.train_user, args.test_user, "Anomaly-Transformer") # generate train/test files 
+            train_output = run_AnomalyTransformer("train",  input_c=args.channel_size, anormly_ratio=args.anormly_ratio) # train model on appropriate user
+            run_AnomalyTransformer(mode="inference_experiment") # Run inferencing 
             
             
             

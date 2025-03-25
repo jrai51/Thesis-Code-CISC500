@@ -295,6 +295,7 @@ class WACASegLoader(Dataset):
         self.mode = mode
         self.step = step
         self.win_size = win_size
+        print(f"Initialized WACASegLoader with win_size={self.win_size} and step={self.step}")
 
         # Load training data
         train_data = pd.read_csv(f"{data_path}/train.csv", header=0).values  # Convert to NumPy array
@@ -603,7 +604,7 @@ def get_loader_segment(data_path, batch_size, win_size=100, step=100, mode='trai
     elif (dataset == 'PSM'):
         dataset = PSMSegLoader(data_path, win_size, 1, mode)
     elif (dataset == 'WACA'):
-        dataset = WACASegLoader(data_path, win_size, 1, mode)
+        dataset = WACASegLoader(data_path, win_size, step, mode)
 
     shuffle = False
     if mode == 'train':

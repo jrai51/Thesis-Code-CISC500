@@ -68,17 +68,21 @@ class Solver(object):
     def __init__(self, config):
 
         self.__dict__.update(Solver.DEFAULTS, **config)
+        print("*************solver init debugging***********")
+        print(f"Self.win_size: {self.win_size}")
+        print(f"self.batch_size: {self.batch_size}")
+        print("************************")
 
-        self.train_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,
+        self.train_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size, step=self.win_size,
                                                mode='train',
                                                dataset=self.dataset)
-        self.vali_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,
+        self.vali_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,  step=self.win_size,
                                               mode='val',
                                               dataset=self.dataset)
-        self.test_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,
+        self.test_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,  step=self.win_size,
                                               mode='test',
                                               dataset=self.dataset)
-        self.thre_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,
+        self.thre_loader = get_loader_segment(self.data_path, batch_size=self.batch_size, win_size=self.win_size,  step=self.win_size,
                                               mode='thre',
                                               dataset=self.dataset)
 
@@ -337,8 +341,10 @@ class Solver(object):
         gt = test_labels.astype(int)
 
         print("pred:   ", pred.shape, pred)
-        print(f"total anomalies: {np.sum(pred)}")
+        print(f"total predicted anomalies: {np.sum(pred)}")
         print("gt:     ", gt.shape)
+        print(gt)
+        print(f"total actual anomalies: {np.sum(gt)}")
 
         # detection adjustment: please see this issue for more information https://github.com/thuml/Anomaly-Transformer/issues/14
         anomaly_state = False
@@ -364,8 +370,14 @@ class Solver(object):
 
         pred = np.array(pred)
         gt = np.array(gt)
+        print("----AFTER STUPID DETECTION-ADJUSTMENT BS-----:")
         print("pred: ", pred.shape)
+        print(pred)
+        print(f"total predicted anomalies: {np.sum(pred)}")
+        
         print("gt:   ", gt.shape)
+        print(gt)
+        print(f"total actual anomalies: {np.sum(gt)}")
 
         from sklearn.metrics import precision_recall_fscore_support
         from sklearn.metrics import accuracy_score
@@ -379,32 +391,39 @@ class Solver(object):
 
         return accuracy, precision, recall, f_score
     
-     def inference_with_window(self, window_size=1000, anomaly_threshold=0.5):
+    def inference_with_window(self, anomaly_threshold=0.5):
         """
-        Inference method for processing windows of data using the Anomaly Transformer model.
+        Inference method for processing test data in windows using the Anomaly Transformer model.
 
-        The anomaly threshold is computed solely from the training set energy distribution.
-        Each window in the test data is then evaluated against this fixed threshold.
+        This function first computes the anomaly threshold using only the training set.
+        Then it segments the test data into non-overlapping windows (of size self.win_size) and,
+        for each window, computes the anomaly energy per data point using the same method as test().
+        A window is flagged as anomalous if the fraction of points with energy above the threshold
+        exceeds anomaly_threshold.
 
         Args:
-            window_size (int): Size of the data window to process.
-            anomaly_threshold (float): Percentage threshold for making an anomaly decision based on
-                                       the proportion of points in a window exceeding the threshold.
+            anomaly_threshold (float): Minimum fraction of anomalous points in a window required 
+                                       to flag that window as anomalous.
 
         Returns:
-            window_results (list): List of results (metrics and decision) for each processed window.
+            window_results (list): A list of dictionaries containing window-level evaluation metrics
+                                   and the binary decision for each window.
         """
-        # Load model checkpoint and set evaluation mode
+        # Load the model checkpoint and set evaluation mode.
         checkpoint_path = os.path.join(str(self.model_save_path), str(self.dataset) + '_checkpoint.pth')
         self.model.load_state_dict(torch.load(checkpoint_path))
         self.model.eval()
+        
+        # Print the number of windows in the test loader:
+        print("Number of test windows:", len(self.test_loader))
+        print(f"Self.win_size: {self.win_size}")
+        print(f"self.batch_size: {self.batch_size}")
 
-        # Define loss and temperature (use self.temperature if available)
-        criterion = nn.MSELoss(reduce=False)
+        criterion = nn.MSELoss(reduction='none')
         temperature = 50
 
         # -------------------------------------------------------------------------
-        # Step 1: Compute the anomaly threshold from the training set
+        # Step 1: Compute the anomaly threshold using ONLY the training set.
         # -------------------------------------------------------------------------
         train_energy = []
         for i, (input_data, _) in enumerate(self.train_loader):
@@ -414,10 +433,10 @@ class Solver(object):
 
             series_loss = 0.0
             prior_loss = 0.0
-            # Compute the combined KL loss over each transformer layer
+            # Compute combined KL losses across all transformer layers.
+            # (Note: this follows your test() method exactly.)
             for u in range(len(prior)):
-                # Normalize the prior using the sum over the last dimension
-                norm_prior = prior[u] / torch.unsqueeze(torch.sum(prior[u], dim=-1), dim=-1).repeat(1, 1, self.win_size)
+                norm_prior = prior[u] / torch.unsqueeze(torch.sum(prior[u], dim=-1), dim=-1).repeat(1, 1, 1, self.win_size)
                 if u == 0:
                     series_loss = my_kl_loss(series[u], norm_prior.detach()) * temperature
                     prior_loss = my_kl_loss(norm_prior, series[u].detach()) * temperature
@@ -427,38 +446,35 @@ class Solver(object):
 
             metric = torch.softmax((-series_loss - prior_loss), dim=-1)
             cri = metric * loss  # anomaly energy for each data point
-            energy = cri.detach().cpu().numpy().flatten()
+            energy = cri.detach().cpu().numpy()
             train_energy.append(energy)
-
-        train_energy = np.concatenate(train_energy, axis=0)
+        train_energy = np.concatenate(train_energy, axis=0).reshape(-1)
         thresh = np.percentile(train_energy, 100 - self.anormly_ratio)
         print("Computed threshold from training set:", thresh)
 
         # -------------------------------------------------------------------------
-        # Step 2: Process the test set in windows using the computed threshold
+        # Step 2: Process the test set window-by-window.
         # -------------------------------------------------------------------------
         window_results = []
         for i, (input_data, labels) in enumerate(self.test_loader):
             batch_size, seq_len, num_features = input_data.shape
-            print(f"Batch size: {batch_size}, Sequence length: {seq_len}, Num features: {num_features}")
+            num_windows = seq_len // self.win_size
 
-            num_windows = seq_len // window_size
-            # Reshape the batch into non-overlapping windows
-            input_windows = input_data[:, :num_windows * window_size, :].reshape(batch_size * num_windows, window_size, num_features)
-            label_windows = labels[:, :num_windows * window_size].reshape(batch_size * num_windows, window_size)
+            # Segment the test batch into non-overlapping windows.
+            input_windows = input_data[:, :num_windows * self.win_size, :].reshape(batch_size * num_windows, self.win_size, num_features)
+            label_windows = labels[:, :num_windows * self.win_size].reshape(batch_size * num_windows, self.win_size)
 
             for window_idx in range(input_windows.shape[0]):
                 window_input = input_windows[window_idx:window_idx+1].float().to(self.device)
                 window_labels = label_windows[window_idx]
 
-                # Forward pass for the current window
                 output, series, prior, _ = self.model(window_input)
                 loss = torch.mean(criterion(window_input, output), dim=-1)
 
                 series_loss = 0.0
                 prior_loss = 0.0
                 for u in range(len(prior)):
-                    norm_prior = prior[u] / torch.unsqueeze(torch.sum(prior[u], dim=-1), dim=-1).repeat(1, 1, window_size)
+                    norm_prior = prior[u] / torch.unsqueeze(torch.sum(prior[u], dim=-1), dim=-1).repeat(1, 1, 1, self.win_size)
                     if u == 0:
                         series_loss = my_kl_loss(series[u], norm_prior.detach()) * temperature
                         prior_loss = my_kl_loss(norm_prior, series[u].detach()) * temperature
@@ -469,17 +485,17 @@ class Solver(object):
                 metric = torch.softmax((-series_loss - prior_loss), dim=-1)
                 cri = metric * loss
                 energy = cri.detach().cpu().numpy().flatten()
-                gt = window_labels.numpy().flatten()
 
-                # Generate binary predictions based on the training threshold
+                # Generate binary predictions using the fixed threshold.
                 pred = (energy > thresh).astype(int)
+                anomaly_percentage = np.sum(pred) / len(pred)
+                decision = anomaly_percentage >= (anomaly_threshold/100) # user provides a percentage value rather than decimal
 
-                # Calculate metrics for the current window
+                # If ground truth is available for evaluation purposes.
+                gt = window_labels.numpy().flatten()
                 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
                 accuracy = accuracy_score(gt, pred)
                 precision, recall, f_score, _ = precision_recall_fscore_support(gt, pred, average='binary')
-                anomaly_percentage = np.sum(pred) / len(pred)
-                decision = anomaly_percentage >= anomaly_threshold
 
                 window_results.append({
                     'window_idx': window_idx,
@@ -490,8 +506,6 @@ class Solver(object):
                     'anomaly_percentage': anomaly_percentage,
                     'anomaly_detected': decision
                 })
-
-                print(f"Window idx: {window_idx}, accuracy: {accuracy:.4f}, anomaly percentage: {anomaly_percentage:.2f}, decision: {decision}")
+                print(f"Window {window_idx}: accuracy={accuracy:.4f}, anomaly_percentage={anomaly_percentage:.2f}, imposter decision={decision}")
 
         return window_results
-

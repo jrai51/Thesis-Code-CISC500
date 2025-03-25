@@ -22,7 +22,7 @@ def main(config):
     elif config.mode == 'test':
         solver.test()
     elif config.mode == 'inference_experiment':
-        solver.inference_with_window(config.win_size, config.anomaly_threshold)
+        solver.inference_with_window(config.anomaly_threshold)
 
     return solver
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--num_epochs', type=int, default=10)
     parser.add_argument('--k', type=int, default=3)
-    parser.add_argument('--win_size', type=int, default=500) #original default was 100
+    parser.add_argument('--win_size', type=int, default=100) #original default was 100
     parser.add_argument('--input_c', type=int, default=38)
     parser.add_argument('--output_c', type=int, default=38)
     parser.add_argument('--batch_size', type=int, default=1024)
