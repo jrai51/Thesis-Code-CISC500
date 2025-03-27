@@ -3,7 +3,7 @@ import argparse
 import time
 import os
 from WACA_clean_data import *
-
+import re
 
 def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset="WACA"):
     # Call  functions from the other script to generate train.csv and test.csv
@@ -38,7 +38,7 @@ def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset=
 
     pass
 
-def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=1000, anormly_ratio=1, batch_size=20):
+def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=1000, anormly_ratio=10, batch_size=8):
     """
     
     train cmd: 
@@ -52,7 +52,7 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_si
     
     cmd = ["python3", "Anomaly-Transformer/main.py",
             "--mode", mode, 
-            "--anormly_ratio", str(anormly_ratio),
+            "--anormly_ratio", str(10),
             "--num_epochs", str(num_epochs),
             "--dataset", dataset, 
             "--data_path", f"./Anomaly-Transformer/dataset/{dataset}",
@@ -62,26 +62,36 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_si
             "--batch_size", str(batch_size)
           ]
     
-    print(cmd)
+    print("Running command:", cmd)
     
     try:
-        # Run the command and capture output
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        
-        # Print command output
         print("STDOUT:", result.stdout)
-        return result.stdout
+        
+        if mode == "inference_experiment":
+            # Parse the output to extract anomaly percentages.
+            anomaly_percentages = []
+            # Look for lines with "anomaly_percentage="
+            for line in result.stdout.splitlines():
+                # For example, line: "Window 3: accuracy=0.0220, anomaly_percentage=0.02, imposter decision=False"
+                m = re.search(r"anomaly_percentage=([\d\.]+)", line)
+                if m:
+                    anomaly_percentages.append(float(m.group(1)))
+            return anomaly_percentages
+        else:
+            print(result.stdout)
         
     except subprocess.CalledProcessError as e:
-        # Print error details if the command fails
         print("ERROR: Command execution failed!")
         print("Return Code:", e.returncode)
         print("STDOUT:", e.stdout)
         print("STDERR:", e.stderr)
+        return None
+    
     
     
 
-def run_MEMTO(mode, dataset="WACA", num_epochs=15, input_c=6, win_size=1000, anormly_ratio=1, n_memory_items=10):
+def run_MEMTO(mode, dataset="WACA", num_epochs=35, input_c=6, win_size=1000, anormly_ratio=10, n_memory_items=10):
     """
     Run MEMTO commands for training and testing.
 
@@ -126,23 +136,31 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=15, input_c=6, win_size=1000, ano
             "--memory_initial", str(memory_initial),
             "--phase_type", phase_type]
     
-    print(cmd)
+    print("Running command:", cmd)
     
     try:
-        # Run the command and capture output
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        
-        # Print command output
         print("STDOUT:", result.stdout)
-        return result.stdout
+        
+        if mode == "inference_experiment":
+            # Parse the output to extract anomaly percentages.
+            anomaly_percentages = []
+            # Look for lines with "anomaly_percentage="
+            for line in result.stdout.splitlines():
+                # For example, line: "Window 3: accuracy=0.0220, anomaly_percentage=0.02, imposter decision=False"
+                m = re.search(r"anomaly_percentage=([\d\.]+)", line)
+                if m:
+                    anomaly_percentages.append(float(m.group(1)))
+            return anomaly_percentages
+        else:
+            print(result.stdout)
         
     except subprocess.CalledProcessError as e:
-        # Print error details if the command fails
         print("ERROR: Command execution failed!")
         print("Return Code:", e.returncode)
         print("STDOUT:", e.stdout)
         print("STDERR:", e.stderr)
-    # Optionally log result.stderr for errors
+        return None
     
     
 
@@ -150,14 +168,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment", type=str, default="train")
     parser.add_argument("--framework", type=str, required=True)
-    parser.add_argument("--train_user", type=str, required=True)
-    parser.add_argument("--test_user", type=str, required=True)
-    parser.add_argument("--anormly_ratio", type=int, default=1, required=False)
-    parser.add_argument("--channel_size", type=int, default=6, required=False)
-
+    parser.add_argument("--train_user", type=str, default=1)
+    parser.add_argument("--test_user", type=str, default=1)
+    parser.add_argument("--anormly_ratio", type=int, default=1)
+    parser.add_argument("--channel_size", type=int, default=6)
     parser.add_argument("--no_retrain", action="store_true", help="Skip retraining if a trained model exists.")
-    args = parser.parse_args()
     
+    args = parser.parse_args()
+
+    # Conditionally require train_user and test_user unless experiment == "generate_results"
+    if args.experiment != "generate_results":
+        if args.train_user is None or args.test_user is None:
+            parser.error("--train_user and --test_user are required for experiments other than generate_results.")
+
     user_ids = [1,2,3,4,5,6,7,8, 19, 21, 22, 26,27,28,29] + [x for x in range(35, 50) if x != 47 ]    
     print("user count:", len(user_ids))
     
@@ -211,9 +234,15 @@ if __name__ == "__main__":
             
             
     elif args.experiment == "generate_results" and args.framework == "MEMTO": #will have to come up with a better way to switch the model methods. Use class methods?
-        for gen_user in user_ids:            
+
+        results_file = open("MEMTO_results.csv", "w")  # Open the results file in write mode.
+        # print a header to the file
+        results_file.write("gen_user,test_user,window_idx,anomaly_percentage\n")  # Writing headers for the columns
+        results_file.flush()  # Ensure header is immediately written to the file
+        
+        for gen_user in user_ids:     
             # Generate train.csv and test.csv based on the specified users.
-            generate_train_test_files(gen_user, args.test_user, "MEMTO")
+            generate_train_test_files(gen_user, gen_user, "MEMTO")
             
             # train a model on the genuine user
             print("Training MEMTO model...")
@@ -222,15 +251,65 @@ if __name__ == "__main__":
             print("Running MEMTO second training phase...")
             second_train_output = run_MEMTO("memory_initial", anormly_ratio=args.anormly_ratio)
             
-            # Should save a model for each user at this point
+            # Could save a model for each user at this point
             
-            for imposter in user_ids:
+            for test_user in user_ids:
                 # inference against the impostor user windows, no need to re-train
-                print(f"gen_user: {gen_user}, imposter: {imposter}")
-                generate_train_test_files(gen_user, imposter, "MEMTO")
-                run_MEMTO(mode="inference_experiment")
+                print(f"gen_user: {gen_user}, test user: {test_user}")
+                generate_train_test_files(gen_user, test_user, "MEMTO")
                 
-        pass
+                window_results = run_MEMTO(mode="inference_experiment") # I need this to return a list of anomaly percentages
+                print(window_results)
+        
+                # For each window, record its anomaly percentage.
+                # For each window's anomaly percentage, record a row
+                for idx, anomaly_pct in enumerate(window_results):
+                    # Create results row 
+                    row = f"{gen_user},{test_user},{idx},{anomaly_pct}\n" 
+                    results_file.write(row)  # Write the row to the results file
+                    results_file.flush()  # Immediately flush data to disk after each write to ensure it's saved
+              
+        # After processing all users, close the results file
+        results_file.close()
+        print("Saved aggregated scores for all users to MEMTO_results.csv")
+    
+    elif args.experiment == "generate_results" and args.framework == "Anomaly-Transformer": #will have to come up with a better way to switch the model methods. Use class methods?
+
+        results_file = open("AnomTrans_results.csv", "w")  # Open the results file in write mode.
+        # print a header to the file
+        results_file.write("gen_user,test_user,window_idx,anomaly_percentage\n")  # Writing headers for the columns
+        results_file.flush()  # Ensure header is immediately written to the file
+        
+        for gen_user in user_ids:     
+            # Generate train.csv and test.csv based on the specified users.
+            generate_train_test_files(gen_user, gen_user, "Anomaly-Transformer")
+            
+            # train a model on the genuine user
+            print("Training Anomaly Transformer model...")
+            train_output = run_AnomalyTransformer("train") # train model on appropriate user
+            
+            # Could save a model for each user at this point?
+            
+            for test_user in user_ids:
+                # inference against the impostor user windows, no need to re-train
+                print(f"gen_user: {gen_user}, test user: {test_user}")
+                generate_train_test_files(gen_user, test_user, "MEMTO")
+                
+                window_results = run_AnomalyTransformer(mode="inference_experiment") # Run inferencing 
+                print(window_results)
+        
+                # For each window, record its anomaly percentage.
+                # For each window's anomaly percentage, record a row
+                for idx, anomaly_pct in enumerate(window_results):
+                    # Create results row 
+                    row = f"{gen_user},{test_user},{idx},{anomaly_pct}\n" 
+                    results_file.write(row)  # Write the row to the results file
+                    results_file.flush()  # Immediately flush data to disk after each write to ensure it's saved
+              
+        # After processing all users, close the results file
+        results_file.close()
+        print("Saved aggregated scores for all users to AnomTrans_results.csv")
+    
     
         
                 

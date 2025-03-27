@@ -39,7 +39,7 @@ def main(config):
         solver.get_memory_initial_embedding(training_type='second_train')
         
     elif config.mode == 'inference_experiment':
-        solver.inference_with_window(config.win_size, config.anomaly_threshold)
+        solver.inference_with_window(config.anomaly_threshold)
         
 #     elif config.mode == 'window_test':
 #         threshold=config.threshold

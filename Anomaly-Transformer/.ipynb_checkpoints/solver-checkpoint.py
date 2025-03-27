@@ -403,7 +403,7 @@ class Solver(object):
 
         Args:
             anomaly_threshold (float): Minimum fraction of anomalous points in a window required 
-                                       to flag that window as anomalous.
+                                       to flag that window as anomalous. DEFAULT: 0.005% 
 
         Returns:
             window_results (list): A list of dictionaries containing window-level evaluation metrics
@@ -415,6 +415,7 @@ class Solver(object):
         self.model.eval()
         
         # Print the number of windows in the test loader:
+        print(f"ANOMALY PERCENTAGE THRESHOLD FOR IMPOSTER DETECTION: {anomaly_threshold/100}")
         print("Number of test windows:", len(self.test_loader))
         print(f"Self.win_size: {self.win_size}")
         print(f"self.batch_size: {self.batch_size}")

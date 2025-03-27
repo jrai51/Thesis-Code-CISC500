@@ -293,14 +293,10 @@ class WACASegLoader(Dataset):
         self.train = scaled_train_data[:split_idx]
         self.val = scaled_train_data[split_idx:]
 
-        print("Scaled train data sample:", self.train[:5])
-
         # Step 3: Read and scale the test data
         test_data = pd.read_csv(f"{data_path}/test.csv", header=0).values  # Convert to NumPy array
         test_data = np.nan_to_num(test_data)  # Handle NaNs if present
         self.test = self.min_max_scale(test_data, self.sensor_min_max)
-
-        print("Scaled test data sample:", self.test[:5])
 
         # Read test labels
         self.test_labels = pd.read_csv(f"{data_path}/test_label.csv", header=0).values[:, 1:]  # Skip index column
