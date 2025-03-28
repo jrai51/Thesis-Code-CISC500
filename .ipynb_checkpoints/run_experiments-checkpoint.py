@@ -38,7 +38,7 @@ def generate_train_test_files(train_user, test_user, framework="MEMTO", dataset=
 
     pass
 
-def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=1000, anormly_ratio=10, batch_size=8):
+def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_size=1000, anormly_ratio=2, batch_size=8):
     """
     
     train cmd: 
@@ -52,7 +52,7 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_si
     
     cmd = ["python3", "Anomaly-Transformer/main.py",
             "--mode", mode, 
-            "--anormly_ratio", str(10),
+            "--anormly_ratio", str(anormly_ratio),
             "--num_epochs", str(num_epochs),
             "--dataset", dataset, 
             "--data_path", f"./Anomaly-Transformer/dataset/{dataset}",
