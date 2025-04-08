@@ -37,23 +37,11 @@ def main(config):
         solver.test()
     elif config.mode == 'memory_initial':
         solver.get_memory_initial_embedding(training_type='second_train')
-        
     elif config.mode == 'inference_experiment':
         solver.inference_with_window(config.anomaly_threshold)
+    elif config.mode == 'inference_with_sums':
+        solver.inference_with_window_sums(config.anomaly_threshold)
         
-#     elif config.mode == 'window_test':
-#         threshold=config.threshold
-#         windows = solver.test_with_windows(anomaly_flag=config.impostor, thresh=threshold)
-#         acc_sum = 0
-#         f1_sum = 0
-#         num_windows = len(windows)
-#         for d in windows:
-#             acc_sum += d['accuracy']
-# #             f1_sum += d['f_score']
-            
-#         print(f"Average accuracy over {num_windows} windows: {acc_sum / num_windows}")
-# #         print(f"Average f score over {num_windows}: {f1_sum / num_windows}")
-#         print("Window testing complete.")
 
     return solver
 
@@ -72,7 +60,7 @@ if __name__ == '__main__':
     parser.add_argument('--lambd',type=float, default=0.01)
     parser.add_argument('--pretrained_model', type=str, default=None)
     parser.add_argument('--dataset', type=str, default='SMD')
-    parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'memory_initial', 'inference_experiment'])
+    parser.add_argument('--mode', type=str, default='test', choices=['train', 'test', 'memory_initial', 'inference_experiment', 'inference_with_sums'])
     parser.add_argument('--data_path', type=str, default='./data/SMD/SMD/')
     parser.add_argument('--model_save_path', type=str, default='./MEMTO/checkpoints')
     parser.add_argument('--anormly_ratio', type=float, default=1.0)

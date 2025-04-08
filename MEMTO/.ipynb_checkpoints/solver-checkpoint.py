@@ -670,72 +670,66 @@ class Solver(object):
                 print(f"Window {w}: accuracy={acc:.4f}, anomaly_percentage={anomaly_percentage:.5f}, imposter decision={decision}")
 
         return window_results
+    
+    
+    def inference_with_window_sums(self, anomaly_threshold=0.5):
+        """
+        Inference method for MEMTO that processes test data in non-overlapping windows.
+
+        The method processes the test data batch-by-batch, splits each batch into non-overlapping 
+             windows, computes the energy for each window, then returns the sum and average energies
+
+        Args:
+            anomaly_threshold (float): Minimum energy score for a window to be flagged as an anomaly
+        Returns:
+            window_results (list): List of dictionaries with window-level metrics and decisions.
+        """
+        # Load the MEMTO checkpoint (from second training)
+        checkpoint_path = os.path.join(str(self.model_save_path), f"{self.dataset}_checkpoint_second_train.pth")
+        self.model.load_state_dict(torch.load(checkpoint_path))
+        self.model.eval()
+
+        # Set up loss functions and temperature.
+        criterion = nn.MSELoss(reduction="none")
+        gathering_loss = GatheringLoss(reduce=False)
+        temperature = self.temperature
+
+       
+        # ---------------------- Step 1: Process Test Windows ----------------------
+        window_results = []
+        for i, (input_data, labels) in enumerate(self.test_loader):
+            batch_size, seq_len, num_features = input_data.shape
+            num_windows = seq_len // self.win_size
+            if num_windows < 1:
+                continue
+            # Split the batch into non-overlapping windows.
+            input_windows = input_data[:, :num_windows * self.win_size, :].reshape(batch_size * num_windows, self.win_size, num_features)
+            label_windows = labels[:, :num_windows * self.win_size].reshape(batch_size * num_windows, self.win_size)
+            for w in range(input_windows.shape[0]):
+                window_input = input_windows[w:w+1].float().to(self.device)
+                window_labels = label_windows[w]
+                output_dict = self.model(window_input)
+                output = output_dict['out']
+                queries = output_dict['queries']
+                mem_items = output_dict['mem']
+                rec_loss = torch.mean(criterion(window_input, output), dim=-1)
+                latent_score = torch.softmax(gathering_loss(queries, mem_items) / temperature, dim=-1)
+                loss = latent_score * rec_loss
+                energy = loss.detach().cpu().numpy().flatten()
+                
+                # Calculate energy sum and energy mean.
+                energy_sum = np.sum(energy)
+                energy_mean = np.mean(energy) 
+                
+                # Flag the window as anomalous if the anomaly percentage meets the given threshold.
+                
+                window_results.append({
+                    'window_idx': w,
+                    'energy_sum': energy_sum,
+                })
+                print(f"Window {w}: energy_sum={energy_sum:.5f}")
+
+        return window_results
 
     
    
-
-#         self.model.load_state_dict(torch.load(os.path.join(str(self.model_save_path), str(self.dataset) + '_checkpoint_second_train.pth')))
-
-#         self.model.eval()
-
-#         criterion = nn.MSELoss(reduce=False)
-#         gathering_loss = GatheringLoss(reduce=False)
-#         temperature = self.temperature
-
-#         window_results = []
-
-#         # Process data in non-overlapping windows
-#         for i, (input_data, labels) in enumerate(self.test_loader):
-#             # Reshape input_data and labels into non-overlapping windows
-#             batch_size, seq_len, num_features = input_data.shape
-#             print(f"Batch size: {batch_size}, Sequence length: {seq_len}, Num features: {num_features}")
-
-#             num_windows = seq_len // window_size
-
-#             input_windows = input_data[:, :num_windows*window_size, :].reshape(batch_size*num_windows, window_size, num_features)
-#             label_windows = labels[:, :num_windows*window_size].reshape(batch_size*num_windows, window_size)
-
-#             for window_idx in range(input_windows.shape[0]):
-#                 window_input = input_windows[window_idx:window_idx+1].float().to(self.device)
-#                 window_labels = label_windows[window_idx]
-
-#                 output_dict = self.model(window_input)
-#                 output, queries, mem_items = output_dict['out'], output_dict['queries'], output_dict['mem']
-
-#                 rec_loss = torch.mean(criterion(window_input, output), dim=-1)
-#                 latent_score = torch.softmax(gathering_loss(queries, mem_items) / temperature, dim=-1)
-#                 loss = latent_score * rec_loss
-
-#                 energy = loss.detach().cpu().numpy().flatten()
-#                 labels = window_labels.numpy().flatten()
-
-#                 # Calculate anomaly predictions
-#                 # THIS VERSION NEEDS TO BE CHANGED TO GET THE THRESHOLD FROM TRAINING WINDOWS, NOT JUST TEST -- COULD BE WHY RESULTS ARE POOR ON MEMTO (PROBABLY IS).
-
-#                 thresh = np.percentile(energy, 100 - self.anormly_ratio)
-#                 pred = (energy > thresh).astype(int)
-#                 gt = labels.astype(int)
-
-#                 # Calculate metrics for this window
-#                 accuracy = accuracy_score(gt, pred)
-#                 precision, recall, f_score, _ = precision_recall_fscore_support(gt, pred, average='binary')
-
-#                 # Calculate the percentage of anomalies detected
-#                 anomaly_percentage = np.sum(pred) / len(pred)
-
-#                 # Make a decision based on the anomaly threshold
-#                 decision = anomaly_percentage >= anomaly_threshold
-
-#                 window_results.append({
-#                     'window_idx': window_idx,
-#                     'accuracy': accuracy,
-#                     'precision': precision,
-#                     'recall': recall,
-#                     'f_score': f_score,
-#                     'anomaly_percentage': anomaly_percentage,
-#                     'impostor_detected': decision
-#                 })
-
-#                 print(f"Window idx: {window_idx}, accuracy: {accuracy}, anomaly percentage: {anomaly_percentage:.2f}, imposter decision: {decision}")
-
-#         return window_results

@@ -158,6 +158,7 @@ class SMAPSegLoader(object):
                 self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
 
 class _WACASegLoader(Dataset):
+    """ deprecated, do not use """
     def __init__(self, data_path, win_size, step, mode="train"):
         self.mode = mode
         self.step = step
@@ -286,7 +287,7 @@ class _WACASegLoader(Dataset):
         
 class WACASegLoader(Dataset):
     """
-    WACASegLoader for MEMTO implementation. 
+    WACASegLoader for Anomaly Transformer implementation. 
     Datapoints are 6 columns (x_a, y_a, z_a, x_g, y_g, z_g). 
     Uses RobustScaler for training data, and min/max of training data to scale the test data.
     """

@@ -78,6 +78,16 @@ def run_AnomalyTransformer(mode, dataset="WACA", num_epochs=3, input_c=6, win_si
                 if m:
                     anomaly_percentages.append(float(m.group(1)))
             return anomaly_percentages
+        
+        elif mode == "inference_with_sums":
+            anomaly_percentages = []
+            # Look for lines with "anomaly_percentage="
+            for line in result.stdout.splitlines():
+                # For example, line: "Window 3: accuracy=0.0220, anomaly_percentage=0.02, imposter decision=False"
+                m = re.search(r"energy_sum=([\d\.]+)", line)
+                if m:
+                    anomaly_percentages.append(float(m.group(1)))
+            return anomaly_percentages
         else:
             print(result.stdout)
         
@@ -149,6 +159,17 @@ def run_MEMTO(mode, dataset="WACA", num_epochs=35, input_c=6, win_size=1000, ano
             for line in result.stdout.splitlines():
                 # For example, line: "Window 3: accuracy=0.0220, anomaly_percentage=0.02, imposter decision=False"
                 m = re.search(r"anomaly_percentage=([\d\.]+)", line)
+                if m:
+                    anomaly_percentages.append(float(m.group(1)))
+            return anomaly_percentages
+        
+        elif mode == "inference_with_sums":
+            # Parse the output to extract anomaly percentages.
+            anomaly_percentages = []
+            # Look for lines with "anomaly_percentage="
+            for line in result.stdout.splitlines():
+                # For example, line: "Window 3: accuracy=0.0220, anomaly_percentage=0.02, imposter decision=False"
+                m = re.search(r"energy_sum=([\d\.]+)", line)
                 if m:
                     anomaly_percentages.append(float(m.group(1)))
             return anomaly_percentages
@@ -224,12 +245,12 @@ if __name__ == "__main__":
         if args.framework == "MEMTO":
             generate_train_test_files(args.train_user, args.test_user, "MEMTO") # generate train/test files 
             train_output = run_MEMTO("train", anormly_ratio=args.anormly_ratio) # train model on appropriate user
-            run_MEMTO(mode="inference_experiment") # Run inferencing 
+            run_MEMTO(mode="inference_with_sums") # Run inferencing 
             
         elif args.framework == "Anomaly-Transformer":
             generate_train_test_files(args.train_user, args.test_user, "Anomaly-Transformer") # generate train/test files 
             train_output = run_AnomalyTransformer("train",  input_c=args.channel_size, anormly_ratio=args.anormly_ratio) # train model on appropriate user
-            run_AnomalyTransformer(mode="inference_experiment") # Run inferencing 
+            run_AnomalyTransformer(mode="inference_with_sums") # Run inferencing with SUMS
             
             
             
@@ -258,7 +279,7 @@ if __name__ == "__main__":
                 print(f"gen_user: {gen_user}, test user: {test_user}")
                 generate_train_test_files(gen_user, test_user, "MEMTO")
                 
-                window_results = run_MEMTO(mode="inference_experiment") # I need this to return a list of anomaly percentages
+                window_results = run_MEMTO(mode="inference_with_sums") # I need this to return a list of anomaly percentages
                 print(window_results)
         
                 # For each window, record its anomaly percentage.
@@ -293,9 +314,9 @@ if __name__ == "__main__":
             for test_user in user_ids:
                 # inference against the impostor user windows, no need to re-train
                 print(f"gen_user: {gen_user}, test user: {test_user}")
-                generate_train_test_files(gen_user, test_user, "MEMTO")
+                generate_train_test_files(gen_user, test_user, "Anomaly-Transformer")
                 
-                window_results = run_AnomalyTransformer(mode="inference_experiment") # Run inferencing 
+                window_results = run_AnomalyTransformer(mode="inference_with_sums") # Run inferencing 
                 print(window_results)
         
                 # For each window, record its anomaly percentage.

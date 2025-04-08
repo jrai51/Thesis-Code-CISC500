@@ -510,3 +510,85 @@ class Solver(object):
                 print(f"Window {window_idx}: accuracy={accuracy:.4f}, anomaly_percentage={anomaly_percentage:.2f}, imposter decision={decision}")
 
         return window_results
+    
+    def inference_with_window_sums(self, anomaly_threshold=0.5):
+        """
+        Inference method for processing test data in windows using the Anomaly Transformer model.
+
+        This function first segments the test data into non-overlapping windows (of size self.win_size) and,
+        for each window, computes the anomaly energy per data point using the same method as test().
+        The sum of energy scores is calculated for each window. This sum is then used for classification of the window, if the window exceeds
+        a certain threshold, the entire window is flagged as anomalous.
+
+        Args:
+            anomaly_threshold (float): Minimum fraction of anomalous points in a window required 
+                                       to flag that window as anomalous. DEFAULT: 0.005% 
+
+        Returns:
+            window_results (list): A list of dictionaries containing window-level evaluation metrics
+                                   and the binary decision for each window.
+        """
+        # Load the model checkpoint and set evaluation mode.
+        print(f"---RUNNING INFERENCING USING SUMS OF ENERGY SCORES---")
+        checkpoint_path = os.path.join(str(self.model_save_path), str(self.dataset) + '_checkpoint.pth')
+        self.model.load_state_dict(torch.load(checkpoint_path))
+        print(f"Loaded model {checkpoint_path}")
+        self.model.eval()
+        
+        # Print the number of windows in the test loader:
+        print("Number of test windows:", len(self.test_loader))
+        print(f"Self.win_size: {self.win_size}")
+        print(f"self.batch_size: {self.batch_size}")
+
+        criterion = nn.MSELoss(reduction='none')
+        temperature = 50
+
+      
+        # -------------------------------------------------------------------------
+        # Step 1: Process the test set window-by-window.
+        # -------------------------------------------------------------------------
+        window_results = []
+        for i, (input_data, labels) in enumerate(self.test_loader):
+            batch_size, seq_len, num_features = input_data.shape
+            num_windows = seq_len // self.win_size
+
+            # Segment the test batch into non-overlapping windows.
+            input_windows = input_data[:, :num_windows * self.win_size, :].reshape(batch_size * num_windows, self.win_size, num_features)
+            label_windows = labels[:, :num_windows * self.win_size].reshape(batch_size * num_windows, self.win_size)
+
+            for window_idx in range(input_windows.shape[0]):
+                window_input = input_windows[window_idx:window_idx+1].float().to(self.device)
+                window_labels = label_windows[window_idx]
+
+                output, series, prior, _ = self.model(window_input)
+                loss = torch.mean(criterion(window_input, output), dim=-1)
+
+                series_loss = 0.0
+                prior_loss = 0.0
+                for u in range(len(prior)):
+                    norm_prior = prior[u] / torch.unsqueeze(torch.sum(prior[u], dim=-1), dim=-1).repeat(1, 1, 1, self.win_size)
+                    if u == 0:
+                        series_loss = my_kl_loss(series[u], norm_prior.detach()) * temperature
+                        prior_loss = my_kl_loss(norm_prior, series[u].detach()) * temperature
+                    else:
+                        series_loss += my_kl_loss(series[u], norm_prior.detach()) * temperature
+                        prior_loss += my_kl_loss(norm_prior, series[u].detach()) * temperature
+
+                metric = torch.softmax((-series_loss - prior_loss), dim=-1)
+                cri = metric * loss
+                energy = cri.detach().cpu().numpy().flatten()
+
+                # Calculate the sum and the mean of the energies for the window 
+                energy_sum = np.sum(energy)
+                energy_mean = np.mean(energy)
+                
+
+                window_results.append({
+                    'window_idx': window_idx,
+                    'energy_sum': energy_sum,
+                    'energy_mean': energy_mean
+                })
+                print(f"Window {window_idx}: energy_sum={energy_sum:.4f}, energy_mean={energy_mean:.4f}")
+
+        return window_results
+

@@ -23,6 +23,11 @@ def main(config):
         solver.test()
     elif config.mode == 'inference_experiment':
         solver.inference_with_window(config.anomaly_threshold)
+    elif config.mode == 'inference_with_sums':
+        solver.inference_with_window_sums(config.anomaly_threshold)
+
+        
+
 
     return solver
 
@@ -39,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--pretrained_model', type=str, default=None)
     parser.add_argument('--dataset', type=str, default='credit')
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test', 'inference_experiment'])
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test', 'inference_experiment', 'inference_with_sums'])
     parser.add_argument('--data_path', type=str, default='./dataset/creditcard_ts.csv')
     parser.add_argument('--model_save_path', type=str, default='./Anomaly-Transformer/checkpoints')
     parser.add_argument('--anormly_ratio', type=float, default=4.00)
